@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Employee {
+  id     String  @id @default(uuid())
+  name   String
+  color  String
+  orders Order[]
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String
+  address   String
+  notes     String
+  category  String
+  createdAt DateTime @default(now())
+  orders    Order[]
+}
+
+model Order {
+  id          String   @id @default(uuid())
+  customerId  String
+  description String
+  date        DateTime
+  employeeId  String
+  category    String
+  status      String   @default("offen")
+  createdAt   DateTime @default(now())
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
