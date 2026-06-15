@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
-import { db } from "@/lib/db"
+import { db, toRows, toRow } from "@/lib/db"
 import { randomUUID } from "crypto"
 
 export async function GET() {
   try {
-    const employees = db.prepare("SELECT * FROM Employee ORDER BY name ASC").all()
-    return NextResponse.json(employees)
+    const result = await db.execute("SELECT * FROM Employee ORDER BY name ASC")
+    return NextResponse.json(toRows(result))
   } catch (err) {
     console.error("[GET /api/employees]", err)
     return NextResponse.json({ error: "Fehler beim Laden der Mitarbeiter" }, { status: 500 })
@@ -25,8 +25,8 @@ export async function POST(request: Request) {
     }
 
     const id = randomUUID()
-    db.prepare("INSERT INTO Employee (id, name, color) VALUES (?, ?, ?)").run(id, name.trim(), color)
-    const employee = db.prepare("SELECT * FROM Employee WHERE id = ?").get(id)
+    await db.execute({ sql: "INSERT INTO Employee (id, name, color) VALUES (?, ?, ?)", args: [id, name.trim(), color] })
+    const employee = toRow(await db.execute({ sql: "SELECT * FROM Employee WHERE id = ?", args: [id] }))
     return NextResponse.json(employee, { status: 201 })
   } catch (err) {
     console.error("[POST /api/employees]", err)

@@ -65,6 +65,7 @@ function parseCustomer(raw: Record<string, unknown>): Customer {
 function parseOrder(raw: Record<string, unknown>): Order {
   return {
     id: raw.id as string,
+    customOrderId: (raw.customOrderId as string) ?? "",
     customerId: raw.customerId as string,
     description: raw.description as string,
     date: parseDate(raw.date),

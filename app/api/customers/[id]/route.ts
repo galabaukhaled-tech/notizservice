@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { db } from "@/lib/db"
+import { db, toRow } from "@/lib/db"
+import type { InValue } from "@libsql/client"
 
 const VALID_CATEGORIES = ["OM Haustechnik", "OMO Gartenservice"]
 
@@ -19,13 +20,13 @@ export async function PUT(
       return NextResponse.json({ error: "Ungültige Kategorie" }, { status: 400 })
     }
 
-    const existing = db.prepare("SELECT * FROM Customer WHERE id = ?").get(id)
+    const existing = toRow(await db.execute({ sql: "SELECT * FROM Customer WHERE id = ?", args: [id] }))
     if (!existing) {
       return NextResponse.json({ error: "Kunde nicht gefunden" }, { status: 404 })
     }
 
     const updates: string[] = []
-    const values: unknown[] = []
+    const values: InValue[] = []
     if (name !== undefined) { updates.push("name = ?"); values.push(name.trim()) }
     if (phone !== undefined) { updates.push("phone = ?"); values.push(String(phone).trim()) }
     if (address !== undefined) { updates.push("address = ?"); values.push(String(address).trim()) }
@@ -34,10 +35,10 @@ export async function PUT(
     values.push(id)
 
     if (updates.length > 0) {
-      db.prepare(`UPDATE Customer SET ${updates.join(", ")} WHERE id = ?`).run(...values)
+      await db.execute({ sql: `UPDATE Customer SET ${updates.join(", ")} WHERE id = ?`, args: values })
     }
 
-    const customer = db.prepare("SELECT * FROM Customer WHERE id = ?").get(id)
+    const customer = toRow(await db.execute({ sql: "SELECT * FROM Customer WHERE id = ?", args: [id] }))
     return NextResponse.json(customer)
   } catch (err) {
     console.error("[PUT /api/customers/[id]]", err)
@@ -51,8 +52,8 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const result = db.prepare("DELETE FROM Customer WHERE id = ?").run(id)
-    if (result.changes === 0) {
+    const result = await db.execute({ sql: "DELETE FROM Customer WHERE id = ?", args: [id] })
+    if (result.rowsAffected === 0) {
       return NextResponse.json({ error: "Kunde nicht gefunden" }, { status: 404 })
     }
     return NextResponse.json({ success: true })

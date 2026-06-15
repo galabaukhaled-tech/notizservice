@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { db } from "@/lib/db"
+import { db, toRow } from "@/lib/db"
+import type { InValue } from "@libsql/client"
 
 const VALID_CATEGORIES = ["OM Haustechnik", "OMO Gartenservice"]
 const VALID_STATUSES = ["offen", "in-bearbeitung", "erledigt"]
@@ -22,13 +23,14 @@ export async function PUT(
       return NextResponse.json({ error: "Ungültiger Status" }, { status: 400 })
     }
 
-    const existing = db.prepare('SELECT * FROM "Order" WHERE id = ?').get(id)
+    const existing = toRow(await db.execute({ sql: 'SELECT * FROM "Order" WHERE id = ?', args: [id] }))
     if (!existing) {
       return NextResponse.json({ error: "Auftrag nicht gefunden" }, { status: 404 })
     }
 
     const updates: string[] = []
-    const values: unknown[] = []
+    const values: InValue[] = []
+    if (body.customOrderId !== undefined) { updates.push("customOrderId = ?"); values.push(typeof body.customOrderId === "string" ? body.customOrderId.trim() : "") }
     if (body.customerId !== undefined) { updates.push("customerId = ?"); values.push(body.customerId) }
     if (body.description !== undefined) { updates.push("description = ?"); values.push(body.description.trim()) }
     if (body.employeeId !== undefined) { updates.push("employeeId = ?"); values.push(body.employeeId) }
@@ -50,10 +52,10 @@ export async function PUT(
     values.push(id)
 
     if (updates.length > 0) {
-      db.prepare(`UPDATE "Order" SET ${updates.join(", ")} WHERE id = ?`).run(...values)
+      await db.execute({ sql: `UPDATE "Order" SET ${updates.join(", ")} WHERE id = ?`, args: values })
     }
 
-    const order = db.prepare('SELECT * FROM "Order" WHERE id = ?').get(id)
+    const order = toRow(await db.execute({ sql: 'SELECT * FROM "Order" WHERE id = ?', args: [id] }))
     return NextResponse.json(order)
   } catch (err) {
     console.error("[PUT /api/orders/[id]]", err)
@@ -67,8 +69,8 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const result = db.prepare('DELETE FROM "Order" WHERE id = ?').run(id)
-    if (result.changes === 0) {
+    const result = await db.execute({ sql: 'DELETE FROM "Order" WHERE id = ?', args: [id] })
+    if (result.rowsAffected === 0) {
       return NextResponse.json({ error: "Auftrag nicht gefunden" }, { status: 404 })
     }
     return NextResponse.json({ success: true })

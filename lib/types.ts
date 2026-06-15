@@ -20,6 +20,7 @@ export interface Employee {
 
 export interface Order {
   id: string
+  customOrderId: string
   customerId: string
   description: string
   date: Date

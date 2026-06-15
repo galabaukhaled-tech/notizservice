@@ -31,6 +31,7 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
   const addOrder = useStore((state) => state.addOrder)
   const updateOrder = useStore((state) => state.updateOrder)
 
+  const [customOrderId, setCustomOrderId] = useState(order?.customOrderId || "")
   const [customerId, setCustomerId] = useState(order?.customerId || preselectedCustomerId || "")
   const [description, setDescription] = useState(order?.description || "")
   const [date, setDate] = useState(order?.date ? format(order.date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"))
@@ -61,6 +62,7 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
     try {
       if (order) {
         await updateOrder(order.id, {
+          customOrderId,
           customerId,
           description,
           date: new Date(date),
@@ -72,6 +74,7 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
         toast.success("Auftrag aktualisiert")
       } else {
         await addOrder({
+          customOrderId,
           customerId,
           description,
           date: new Date(date),
@@ -92,6 +95,16 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="customOrderId">Auftrags-ID <span className="text-muted-foreground font-normal">(optional)</span></Label>
+        <Input
+          id="customOrderId"
+          value={customOrderId}
+          onChange={(e) => setCustomOrderId(e.target.value)}
+          placeholder="z.B. AU-2026-001"
+        />
+      </div>
+
       <div className="space-y-2">
         <Label>Kunde *</Label>
         <Select value={customerId} onValueChange={setCustomerId}>

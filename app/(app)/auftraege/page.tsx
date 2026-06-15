@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, Clock, CheckCircle2, Circle, Calendar, User } from "lucide-react"
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, Clock, CheckCircle2, Circle, Calendar, User, Copy } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -106,6 +106,32 @@ export default function AuftraegePage() {
     if (isTomorrow(date)) return "Morgen"
     if (isPast(startOfDay(date))) return "Überfällig"
     return format(date, "d. MMM yyyy", { locale: de })
+  }
+
+  const handleCopy = (order: Order) => {
+    const customer = customers.find((c) => c.id === order.customerId)
+    const employee = employees.find((e) => e.id === order.employeeId)
+    const statusLabel = order.status === "offen" ? "Offen" : order.status === "in-bearbeitung" ? "In Bearbeitung" : "Erledigt"
+    const dateLabel = format(order.date, "d. MMM yyyy", { locale: de })
+    const timeLabel = order.time ? ` um ${order.time} Uhr` : ""
+
+    const lines: string[] = []
+    if (order.customOrderId) lines.push(`Auftrags-ID: ${order.customOrderId}`)
+    lines.push("──────────────────────")
+    if (customer) {
+      lines.push(`Kunde: ${customer.name}`)
+      if (customer.phone) lines.push(`Telefon: ${customer.phone}`)
+      if (customer.address) lines.push(`Adresse: ${customer.address}`)
+    }
+    lines.push("──────────────────────")
+    lines.push(`Beschreibung: ${order.description}`)
+    lines.push(`Datum: ${dateLabel}${timeLabel}`)
+    if (employee) lines.push(`Mitarbeiter: ${employee.name}`)
+    lines.push(`Kategorie: ${order.category}`)
+    lines.push(`Status: ${statusLabel}`)
+
+    navigator.clipboard.writeText(lines.join("\n"))
+    toast.success("Auftrag kopiert")
   }
 
   const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
@@ -274,7 +300,14 @@ export default function AuftraegePage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <p className="font-medium">{order.description}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{order.description}</p>
+                            {order.customOrderId && (
+                              <span className="text-xs font-mono text-muted-foreground border border-border rounded px-1.5 py-0.5 shrink-0">
+                                {order.customOrderId}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground">
                             {getCustomerName(order.customerId)}
                           </p>
@@ -321,6 +354,10 @@ export default function AuftraegePage() {
                               <DropdownMenuItem onClick={() => setEditingOrder(order)}>
                                 <Pencil className="size-4 mr-2" />
                                 Bearbeiten
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleCopy(order)}>
+                                <Copy className="size-4 mr-2" />
+                                Kopieren
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
