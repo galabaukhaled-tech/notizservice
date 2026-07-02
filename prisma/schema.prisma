@@ -21,17 +21,22 @@ model Customer {
   address   String
   notes     String
   category  String
+  gewerk    String   @default("")
   createdAt DateTime @default(now())
   orders    Order[]
 }
 
 model Order {
   id          String   @id @default(uuid())
+  customOrderId String @default("")
   customerId  String
   description String
   date        DateTime
+  time        String   @default("")
+  endTime     String   @default("")
   employeeId  String
   category    String
+  gewerk      String   @default("")
   status      String   @default("offen")
   createdAt   DateTime @default(now())
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)

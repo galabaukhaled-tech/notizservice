@@ -1,0 +1,32 @@
+appId: com.notizservice.app
+productName: Notizservice
+directories:
+  output: dist-electron
+  buildResources: build
+# Nur die Electron-Dateien gehen in den App-ASAR; der Next-Server kommt als Resource dazu.
+files:
+  - electron/**/*
+  - "!electron/env.json"
+extraResources:
+  # Self-contained Next.js-Server inkl. node_modules
+  - from: .next/standalone
+    to: standalone
+  # Turso-Zugangsdaten neben den Server legen
+  - from: electron/env.json
+    to: env.json
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  # icon: build/icon.ico   # optional: eigenes Icon hier ablegen
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Notizservice

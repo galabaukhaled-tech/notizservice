@@ -25,7 +25,7 @@ interface StoreState {
   deleteEmployee: (id: string) => Promise<void>
 
   // Order actions
-  addOrder: (order: Omit<Order, "id" | "createdAt">) => Promise<void>
+  addOrder: (order: Omit<Order, "id" | "createdAt" | "customOrderId">) => Promise<void>
   updateOrder: (id: string, order: Partial<Order>) => Promise<void>
   deleteOrder: (id: string) => Promise<void>
 
@@ -58,6 +58,7 @@ function parseCustomer(raw: Record<string, unknown>): Customer {
     address: raw.address as string,
     notes: raw.notes as string,
     category: raw.category as Customer["category"],
+    gewerk: (raw.gewerk as Customer["gewerk"]) ?? "",
     createdAt: parseDate(raw.createdAt),
   }
 }
@@ -70,8 +71,10 @@ function parseOrder(raw: Record<string, unknown>): Order {
     description: raw.description as string,
     date: parseDate(raw.date),
     time: (raw.time as string) ?? "",
+    endTime: (raw.endTime as string) ?? "",
     employeeId: raw.employeeId as string,
     category: raw.category as Order["category"],
+    gewerk: (raw.gewerk as Order["gewerk"]) ?? "",
     status: raw.status as Order["status"],
     createdAt: parseDate(raw.createdAt),
   }

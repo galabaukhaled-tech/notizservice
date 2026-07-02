@@ -1,9 +1,24 @@
 import { NextResponse } from "next/server"
 import { db, toRows, toRow } from "@/lib/db"
+import { GEWERKE } from "@/lib/types"
 import { randomUUID } from "crypto"
 
 const VALID_CATEGORIES = ["OM Haustechnik", "OMO Gartenservice"]
-const VALID_STATUSES = ["offen", "in-bearbeitung", "erledigt"]
+const VALID_GEWERKE = GEWERKE as readonly string[]
+const VALID_STATUSES = ["offen", "in-bearbeitung", "erledigt", "storniert"]
+
+const TIME_RE = /^\d{2}:\d{2}$/
+
+// Nächste fortlaufende Auftrags-ID im Format AU-0001 ermitteln.
+async function nextCustomOrderId(): Promise<string> {
+  const result = await db.execute('SELECT customOrderId FROM "Order"')
+  let max = 0
+  for (const row of toRows<{ customOrderId: string | null }>(result)) {
+    const match = /^AU-(\d+)$/.exec(row.customOrderId ?? "")
+    if (match) max = Math.max(max, parseInt(match[1], 10))
+  }
+  return `AU-${String(max + 1).padStart(4, "0")}`
+}
 
 export async function GET() {
   try {
@@ -18,7 +33,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { customOrderId, customerId, description, date, time, employeeId, category, status } = body
+    const { customerId, description, date, time, endTime, employeeId, category, gewerk, status } = body
 
     if (!customerId || typeof customerId !== "string") {
       return NextResponse.json({ error: "Kunde ist erforderlich" }, { status: 400 })
@@ -32,6 +47,9 @@ export async function POST(request: Request) {
     if (!VALID_CATEGORIES.includes(category)) {
       return NextResponse.json({ error: "Ungültige Kategorie" }, { status: 400 })
     }
+    if (gewerk !== undefined && gewerk !== "" && !VALID_GEWERKE.includes(gewerk)) {
+      return NextResponse.json({ error: "Ungültiges Gewerk" }, { status: 400 })
+    }
     if (status !== undefined && !VALID_STATUSES.includes(status)) {
       return NextResponse.json({ error: "Ungültiger Status" }, { status: 400 })
     }
@@ -43,13 +61,16 @@ export async function POST(request: Request) {
 
     const id = randomUUID()
     const createdAt = new Date().toISOString()
-    const timeValue = typeof time === "string" && /^\d{2}:\d{2}$/.test(time) ? time : ""
+    const timeValue = typeof time === "string" && TIME_RE.test(time) ? time : ""
+    const endTimeValue = typeof endTime === "string" && TIME_RE.test(endTime) ? endTime : ""
+    const gewerkValue = typeof gewerk === "string" ? gewerk : ""
 
-    const customOrderIdValue = typeof customOrderId === "string" ? customOrderId.trim() : ""
+    // Auftrags-ID wird immer automatisch fortlaufend vergeben.
+    const customOrderIdValue = await nextCustomOrderId()
 
     await db.execute({
-      sql: 'INSERT INTO "Order" (id, customOrderId, customerId, description, date, time, employeeId, category, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      args: [id, customOrderIdValue, customerId, description.trim(), parsedDate.toISOString(), timeValue, employeeId, category, status ?? "offen", createdAt],
+      sql: 'INSERT INTO "Order" (id, customOrderId, customerId, description, date, time, endTime, employeeId, category, gewerk, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      args: [id, customOrderIdValue, customerId, description.trim(), parsedDate.toISOString(), timeValue, endTimeValue, employeeId, category, gewerkValue, status ?? "offen", createdAt],
     })
 
     const order = toRow(await db.execute({ sql: 'SELECT * FROM "Order" WHERE id = ?', args: [id] }))

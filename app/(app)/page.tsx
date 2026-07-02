@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { Plus, Users, ClipboardList, Calendar, ArrowRight, Clock, CheckCircle2, Circle } from "lucide-react"
+import { Plus, Users, ClipboardList, Calendar, ArrowRight, Clock, CheckCircle2, Circle, XCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,10 +15,19 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { useStore } from "@/lib/store"
+import { ORDER_STATUS_LABELS, type Order, type OrderStatus } from "@/lib/types"
 import { CustomerForm } from "@/components/customer-form"
 import { OrderForm } from "@/components/order-form"
+import { formatTimeRange } from "@/lib/utils"
 import { format, isToday, isTomorrow, startOfDay } from "date-fns"
 import { de } from "date-fns/locale"
+
+function sortByTime<T extends { time: string }>(a: T, b: T): number {
+  if (a.time && b.time) return a.time.localeCompare(b.time)
+  if (a.time) return -1
+  if (b.time) return 1
+  return 0
+}
 
 function StatusIcon({ status }: { status: string }) {
   switch (status) {
@@ -28,6 +37,8 @@ function StatusIcon({ status }: { status: string }) {
       return <Clock className="size-4 text-status-progress" />
     case "erledigt":
       return <CheckCircle2 className="size-4 text-status-done" />
+    case "storniert":
+      return <XCircle className="size-4 text-status-cancelled" />
     default:
       return null
   }
@@ -38,17 +49,12 @@ function StatusBadge({ status }: { status: string }) {
     offen: "bg-status-open/10 text-status-open border-status-open/30",
     "in-bearbeitung": "bg-status-progress/10 text-status-progress border-status-progress/30",
     erledigt: "bg-status-done/10 text-status-done border-status-done/30",
-  }
-
-  const labels: Record<string, string> = {
-    offen: "Offen",
-    "in-bearbeitung": "In Bearbeitung",
-    erledigt: "Erledigt",
+    storniert: "bg-status-cancelled/10 text-status-cancelled border-status-cancelled/30",
   }
 
   return (
     <Badge variant="outline" className={variants[status]}>
-      {labels[status]}
+      {ORDER_STATUS_LABELS[status as OrderStatus]}
     </Badge>
   )
 }
@@ -60,15 +66,16 @@ export default function DashboardPage() {
 
   const [isNewCustomerOpen, setIsNewCustomerOpen] = useState(false)
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false)
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
 
   const todayOrders = useMemo(() => {
-    return orders.filter((order) => isToday(order.date))
+    return orders.filter((order) => isToday(order.date)).sort(sortByTime)
   }, [orders])
 
   const upcomingOrders = useMemo(() => {
     const today = startOfDay(new Date())
     return orders
-      .filter((order) => order.date >= today && order.status !== "erledigt")
+      .filter((order) => order.date >= today && order.status !== "erledigt" && order.status !== "storniert")
       .sort((a, b) => a.date.getTime() - b.date.getTime())
       .slice(0, 5)
   }, [orders])
@@ -147,42 +154,26 @@ export default function DashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Kunden</CardTitle>
-            <Users className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalCustomers}</div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Aufträge</CardTitle>
-            <ClipboardList className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalOrders}</div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Offen</CardTitle>
-            <Circle className="size-4 text-status-open" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-status-open">{stats.openOrders}</div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Heute</CardTitle>
-            <Calendar className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.todayAppointments}</div>
-          </CardContent>
-        </Card>
+        {[
+          { label: "Kunden", value: stats.totalCustomers, icon: Users, tint: "bg-primary/10 text-primary" },
+          { label: "Aufträge", value: stats.totalOrders, icon: ClipboardList, tint: "bg-primary/10 text-primary" },
+          { label: "Offen", value: stats.openOrders, icon: Circle, tint: "bg-status-open/10 text-status-open", accent: true },
+          { label: "Heute", value: stats.todayAppointments, icon: Calendar, tint: "bg-accent/10 text-accent" },
+        ].map(({ label, value, icon: Icon, tint, accent }) => (
+          <Card key={label} className="transition-all hover:shadow-md hover:-translate-y-0.5">
+            <CardContent className="flex items-center gap-4">
+              <div className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${tint}`}>
+                <Icon className="size-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                <p className={`text-2xl font-semibold tabular-nums tracking-tight ${accent ? "text-status-open" : ""}`}>
+                  {value}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -204,24 +195,35 @@ export default function DashboardPage() {
               </p>
             ) : (
               <div className="space-y-3">
-                {todayOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="flex items-start gap-3 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
-                  >
-                    <div
-                      className="size-2 rounded-full mt-2"
-                      style={{ backgroundColor: getEmployeeColor(order.employeeId) }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{order.description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {getCustomerName(order.customerId)} • {getEmployeeName(order.employeeId)}
-                      </p>
-                    </div>
-                    <StatusBadge status={order.status} />
-                  </div>
-                ))}
+                {todayOrders.map((order) => {
+                  const timeRange = formatTimeRange(order.time, order.endTime)
+                  return (
+                    <button
+                      key={order.id}
+                      onClick={() => setSelectedOrder(order)}
+                      className="w-full text-left flex items-start gap-3 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
+                    >
+                      {timeRange ? (
+                        <span className="text-xs font-semibold tabular-nums text-primary mt-0.5 w-20 shrink-0">
+                          {timeRange}
+                        </span>
+                      ) : (
+                        <div
+                          className="size-2 rounded-full mt-2 shrink-0"
+                          style={{ backgroundColor: getEmployeeColor(order.employeeId) }}
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{order.description}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {getCustomerName(order.customerId)} • {getEmployeeName(order.employeeId)}
+                          {order.gewerk && ` • ${order.gewerk}`}
+                        </p>
+                      </div>
+                      <StatusBadge status={order.status} />
+                    </button>
+                  )
+                })}
               </div>
             )}
           </CardContent>
@@ -246,9 +248,10 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-3">
                 {upcomingOrders.map((order) => (
-                  <div
+                  <button
                     key={order.id}
-                    className="flex items-start gap-3 p-3 rounded-lg border border-border hover:border-primary/30 transition-colors"
+                    onClick={() => setSelectedOrder(order)}
+                    className="w-full text-left flex items-start gap-3 p-3 rounded-lg border border-border hover:border-primary/30 transition-colors"
                   >
                     <StatusIcon status={order.status} />
                     <div className="flex-1 min-w-0">
@@ -257,13 +260,18 @@ export default function DashboardPage() {
                         {getCustomerName(order.customerId)}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right shrink-0">
                       <p className="text-xs font-medium">
                         {isToday(order.date)
                           ? "Heute"
                           : isTomorrow(order.date)
                           ? "Morgen"
                           : format(order.date, "d. MMM", { locale: de })}
+                        {formatTimeRange(order.time, order.endTime) && (
+                          <span className="text-muted-foreground font-normal tabular-nums">
+                            {" "}· {formatTimeRange(order.time, order.endTime)}
+                          </span>
+                        )}
                       </p>
                       <Badge
                         variant="outline"
@@ -276,7 +284,7 @@ export default function DashboardPage() {
                         {order.category === "OM Haustechnik" ? "Haustechnik" : "Garten"}
                       </Badge>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -323,6 +331,24 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Order Detail Dialog */}
+      <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Auftrag bearbeiten</DialogTitle>
+            <DialogDescription>
+              Bearbeiten Sie die Auftragsdetails.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedOrder && (
+            <OrderForm
+              order={selectedOrder}
+              onSuccess={() => setSelectedOrder(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

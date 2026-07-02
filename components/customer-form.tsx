@@ -5,9 +5,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useStore } from "@/lib/store"
-import type { Category, Customer } from "@/lib/types"
+import { GEWERKE, categoryFromGewerk, type Gewerk, type Customer } from "@/lib/types"
 import { toast } from "sonner"
 import { Spinner } from "@/components/ui/spinner"
 
@@ -22,7 +28,7 @@ export function CustomerForm({ initialPhone = "", customer, onSuccess }: Custome
   const [phone, setPhone] = useState(customer?.phone || initialPhone)
   const [address, setAddress] = useState(customer?.address || "")
   const [notes, setNotes] = useState(customer?.notes || "")
-  const [category, setCategory] = useState<Category>(customer?.category || "OM Haustechnik")
+  const [gewerk, setGewerk] = useState<Gewerk | "">(customer?.gewerk || "")
   const [isLoading, setIsLoading] = useState(false)
 
   const addCustomer = useStore((state) => state.addCustomer)
@@ -35,15 +41,20 @@ export function CustomerForm({ initialPhone = "", customer, onSuccess }: Custome
       toast.error("Bitte Namen eingeben")
       return
     }
+    if (!gewerk) {
+      toast.error("Bitte Gewerk auswählen")
+      return
+    }
 
     setIsLoading(true)
+    const category = categoryFromGewerk(gewerk)
 
     try {
       if (customer) {
-        await updateCustomer(customer.id, { name, phone, address, notes, category })
+        await updateCustomer(customer.id, { name, phone, address, notes, category, gewerk })
         toast.success("Kunde aktualisiert")
       } else {
-        await addCustomer({ name, phone, address, notes, category })
+        await addCustomer({ name, phone, address, notes, category, gewerk })
         toast.success("Kunde erstellt")
       }
       onSuccess?.()
@@ -99,25 +110,19 @@ export function CustomerForm({ initialPhone = "", customer, onSuccess }: Custome
       </div>
 
       <div className="space-y-2">
-        <Label>Kategorie</Label>
-        <RadioGroup
-          value={category}
-          onValueChange={(value) => setCategory(value as Category)}
-          className="flex flex-col gap-2"
-        >
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="OM Haustechnik" id="haustechnik" />
-            <Label htmlFor="haustechnik" className="font-normal cursor-pointer">
-              OM Haustechnik
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="OMO Gartenservice" id="gartenservice" />
-            <Label htmlFor="gartenservice" className="font-normal cursor-pointer">
-              OMO Gartenservice
-            </Label>
-          </div>
-        </RadioGroup>
+        <Label>Gewerk *</Label>
+        <Select value={gewerk} onValueChange={(value) => setGewerk(value as Gewerk)}>
+          <SelectTrigger>
+            <SelectValue placeholder="Gewerk auswählen" />
+          </SelectTrigger>
+          <SelectContent>
+            {GEWERKE.map((g) => (
+              <SelectItem key={g} value={g}>
+                {g}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <Button type="submit" className="w-full" disabled={isLoading}>

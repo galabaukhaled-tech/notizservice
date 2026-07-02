@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { ChevronLeft, ChevronRight, Clock, CheckCircle2, Circle } from "lucide-react"
+import { ChevronLeft, ChevronRight, Clock, CheckCircle2, Circle, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,7 +29,8 @@ import {
   isToday,
 } from "date-fns"
 import { de } from "date-fns/locale"
-import { cn } from "@/lib/utils"
+import { MapPin } from "lucide-react"
+import { cn, cityFromAddress, formatTimeRange } from "@/lib/utils"
 
 function StatusIcon({ status }: { status: OrderStatus }) {
   switch (status) {
@@ -39,6 +40,8 @@ function StatusIcon({ status }: { status: OrderStatus }) {
       return <Clock className="size-3 text-status-progress" />
     case "erledigt":
       return <CheckCircle2 className="size-3 text-status-done" />
+    case "storniert":
+      return <XCircle className="size-3 text-status-cancelled" />
   }
 }
 
@@ -91,6 +94,11 @@ export default function KalenderPage() {
 
   const getCustomerName = (customerId: string) => {
     return customers.find((c) => c.id === customerId)?.name || "Unbekannt"
+  }
+
+  const getCustomerCity = (customerId: string) => {
+    const address = customers.find((c) => c.id === customerId)?.address || ""
+    return cityFromAddress(address)
   }
 
   const getEmployeeName = (employeeId: string) => {
@@ -180,7 +188,8 @@ export default function KalenderPage() {
         <Card>
           <CardContent className="p-4">
             {viewMode === "month" ? (
-              <>
+              <div className="overflow-x-auto">
+                <div className="min-w-[560px]">
                 {/* Weekday Headers */}
                 <div className="grid grid-cols-7 mb-2">
                   {["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((day) => (
@@ -250,11 +259,12 @@ export default function KalenderPage() {
                     )
                   })}
                 </div>
-              </>
+                </div>
+              </div>
             ) : (
-              <>
+              <div className="overflow-x-auto">
                 {/* Week View */}
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid grid-cols-7 gap-2 min-w-[640px]">
                   {weekDays.map((day, index) => {
                     const dayOrders = getOrdersForDate(day)
                     const isSelected = selectedDate && isSameDay(day, selectedDate)
@@ -289,13 +299,16 @@ export default function KalenderPage() {
                                   borderLeft: `3px solid ${color}`,
                                 }}
                               >
-                                {order.time && (
-                                  <p className="font-semibold tabular-nums">{order.time}</p>
+                                {formatTimeRange(order.time, order.endTime) && (
+                                  <p className="font-semibold tabular-nums">{formatTimeRange(order.time, order.endTime)}</p>
                                 )}
                                 <p className="font-medium truncate">{order.description}</p>
                                 <p className="text-muted-foreground truncate">
                                   {getCustomerName(order.customerId)}
                                 </p>
+                                {getCustomerCity(order.customerId) && (
+                                  <p className="text-muted-foreground truncate">{getCustomerCity(order.customerId)}</p>
+                                )}
                               </button>
                             )
                           })}
@@ -304,7 +317,7 @@ export default function KalenderPage() {
                     )
                   })}
                 </div>
-              </>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -347,13 +360,19 @@ export default function KalenderPage() {
                           style={{ backgroundColor: color }}
                         />
                         <div className="flex-1 min-w-0">
-                          {order.time && (
-                            <p className="text-xs font-semibold tabular-nums text-primary mb-0.5">{order.time} Uhr</p>
+                          {formatTimeRange(order.time, order.endTime) && (
+                            <p className="text-xs font-semibold tabular-nums text-primary mb-0.5">{formatTimeRange(order.time, order.endTime)} Uhr</p>
                           )}
                           <p className="font-medium text-sm truncate">{order.description}</p>
                           <p className="text-xs text-muted-foreground">
                             {getCustomerName(order.customerId)}
                           </p>
+                          {getCustomerCity(order.customerId) && (
+                            <p className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                              <MapPin className="size-3 shrink-0" />
+                              {getCustomerCity(order.customerId)}
+                            </p>
+                          )}
                           <div className="flex items-center gap-2 mt-1">
                             <StatusIcon status={order.status} />
                             <Badge

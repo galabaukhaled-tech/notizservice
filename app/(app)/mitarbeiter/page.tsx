@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Plus, MoreHorizontal, Pencil, Trash2, ClipboardList } from "lucide-react"
+import { Plus, MoreHorizontal, Pencil, Trash2, ClipboardList, Clock, CheckCircle2, Circle, XCircle, Calendar } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -32,9 +32,26 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useStore } from "@/lib/store"
-import type { Employee } from "@/lib/types"
+import { OrderForm } from "@/components/order-form"
+import { ORDER_STATUS_SORT, type Employee, type Order, type OrderStatus } from "@/lib/types"
+import { formatTimeRange } from "@/lib/utils"
+import { format } from "date-fns"
+import { de } from "date-fns/locale"
 import { toast } from "sonner"
 import { Spinner } from "@/components/ui/spinner"
+
+function StatusIcon({ status }: { status: OrderStatus }) {
+  switch (status) {
+    case "offen":
+      return <Circle className="size-4 text-status-open" />
+    case "in-bearbeitung":
+      return <Clock className="size-4 text-status-progress" />
+    case "erledigt":
+      return <CheckCircle2 className="size-4 text-status-done" />
+    case "storniert":
+      return <XCircle className="size-4 text-status-cancelled" />
+  }
+}
 
 const colorOptions = [
   "#5B7FFF", // Blue
@@ -138,10 +155,13 @@ function EmployeeForm({ employee, onSuccess }: EmployeeFormProps) {
 export default function MitarbeiterPage() {
   const employees = useStore((state) => state.employees)
   const orders = useStore((state) => state.orders)
+  const customers = useStore((state) => state.customers)
   const deleteEmployee = useStore((state) => state.deleteEmployee)
-  
+
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
   const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null)
+  const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null)
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
 
   const getOrderStats = (employeeId: string) => {
@@ -153,6 +173,21 @@ export default function MitarbeiterPage() {
       done: employeeOrders.filter((o) => o.status === "erledigt").length,
     }
   }
+
+  const getCustomerName = (customerId: string) =>
+    customers.find((c) => c.id === customerId)?.name || "Unbekannt"
+
+  // Aufträge eines Mitarbeiters, sortiert offen -> in Bearbeitung -> erledigt, dann nach Datum.
+  const viewingOrders = useMemo(() => {
+    if (!viewingEmployee) return []
+    return orders
+      .filter((o) => o.employeeId === viewingEmployee.id)
+      .sort((a, b) => {
+        const statusDiff = ORDER_STATUS_SORT[a.status] - ORDER_STATUS_SORT[b.status]
+        if (statusDiff !== 0) return statusDiff
+        return a.date.getTime() - b.date.getTime()
+      })
+  }, [orders, viewingEmployee])
 
   const handleDelete = () => {
     if (deletingEmployee) {
@@ -205,7 +240,11 @@ export default function MitarbeiterPage() {
             const stats = getOrderStats(employee.id)
             
             return (
-              <Card key={employee.id} className="hover:shadow-md transition-shadow">
+              <Card
+                key={employee.id}
+                className="hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => setViewingEmployee(employee)}
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -218,12 +257,12 @@ export default function MitarbeiterPage() {
                       </CardTitle>
                     </div>
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                         <Button variant="ghost" size="icon" className="size-8 shrink-0">
                           <MoreHorizontal className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenuItem onClick={() => setEditingEmployee(employee)}>
                           <Pencil className="size-4 mr-2" />
                           Bearbeiten
@@ -261,6 +300,89 @@ export default function MitarbeiterPage() {
           })}
         </div>
       )}
+
+      {/* Employee Orders Dialog */}
+      <Dialog open={!!viewingEmployee} onOpenChange={(open) => !open && setViewingEmployee(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {viewingEmployee && (
+                <span
+                  className="size-4 rounded-full shrink-0"
+                  style={{ backgroundColor: viewingEmployee.color }}
+                />
+              )}
+              Aufträge von {viewingEmployee?.name}
+            </DialogTitle>
+            <DialogDescription>
+              {viewingOrders.length} Aufträge zugewiesen
+            </DialogDescription>
+          </DialogHeader>
+          {viewingOrders.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              Diesem Mitarbeiter sind keine Aufträge zugewiesen.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {viewingOrders.map((order) => {
+                const timeRange = formatTimeRange(order.time, order.endTime)
+                return (
+                  <button
+                    key={order.id}
+                    onClick={() => setEditingOrder(order)}
+                    className="w-full text-left flex items-start gap-3 p-3 rounded-lg border hover:border-primary/30 hover:shadow-sm transition-all"
+                  >
+                    <StatusIcon status={order.status} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm truncate">{order.description}</p>
+                        {order.customOrderId && (
+                          <span className="text-xs font-mono text-muted-foreground shrink-0">
+                            {order.customOrderId}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {getCustomerName(order.customerId)}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="size-3" />
+                          {format(order.date, "d. MMM yyyy", { locale: de })}
+                          {timeRange && <span className="tabular-nums">· {timeRange}</span>}
+                        </span>
+                        {order.gewerk && (
+                          <Badge variant="secondary" className="font-normal">
+                            {order.gewerk}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Order Edit Dialog */}
+      <Dialog open={!!editingOrder} onOpenChange={(open) => !open && setEditingOrder(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Auftrag bearbeiten</DialogTitle>
+            <DialogDescription>
+              Bearbeiten Sie die Auftragsdetails.
+            </DialogDescription>
+          </DialogHeader>
+          {editingOrder && (
+            <OrderForm
+              order={editingOrder}
+              onSuccess={() => setEditingOrder(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={!!editingEmployee} onOpenChange={(open) => !open && setEditingEmployee(null)}>

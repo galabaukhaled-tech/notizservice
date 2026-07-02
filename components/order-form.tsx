@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Select,
   SelectContent,
@@ -14,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useStore } from "@/lib/store"
-import type { Category, OrderStatus, Order } from "@/lib/types"
+import { GEWERKE, categoryFromGewerk, type Gewerk, type OrderStatus, type Order } from "@/lib/types"
 import { toast } from "sonner"
 import { Spinner } from "@/components/ui/spinner"
 import { format } from "date-fns"
@@ -31,13 +30,13 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
   const addOrder = useStore((state) => state.addOrder)
   const updateOrder = useStore((state) => state.updateOrder)
 
-  const [customOrderId, setCustomOrderId] = useState(order?.customOrderId || "")
   const [customerId, setCustomerId] = useState(order?.customerId || preselectedCustomerId || "")
   const [description, setDescription] = useState(order?.description || "")
   const [date, setDate] = useState(order?.date ? format(order.date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"))
   const [time, setTime] = useState(order?.time || "")
+  const [endTime, setEndTime] = useState(order?.endTime || "")
   const [employeeId, setEmployeeId] = useState(order?.employeeId || "")
-  const [category, setCategory] = useState<Category>(order?.category || "OM Haustechnik")
+  const [gewerk, setGewerk] = useState<Gewerk | "">(order?.gewerk || "")
   const [status, setStatus] = useState<OrderStatus>(order?.status || "offen")
   const [isLoading, setIsLoading] = useState(false)
 
@@ -56,31 +55,41 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
       toast.error("Bitte Mitarbeiter auswählen")
       return
     }
+    if (!gewerk) {
+      toast.error("Bitte Gewerk auswählen")
+      return
+    }
+    if (endTime && time && endTime <= time) {
+      toast.error("Bis-Uhrzeit muss nach der Von-Uhrzeit liegen")
+      return
+    }
 
     setIsLoading(true)
 
     try {
       if (order) {
         await updateOrder(order.id, {
-          customOrderId,
           customerId,
           description,
           date: new Date(date),
           time,
+          endTime,
           employeeId,
-          category,
+          category: categoryFromGewerk(gewerk),
+          gewerk,
           status,
         })
         toast.success("Auftrag aktualisiert")
       } else {
         await addOrder({
-          customOrderId,
           customerId,
           description,
           date: new Date(date),
           time,
+          endTime,
           employeeId,
-          category,
+          category: categoryFromGewerk(gewerk),
+          gewerk,
           status,
         })
         toast.success("Auftrag erstellt")
@@ -96,12 +105,13 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="customOrderId">Auftrags-ID <span className="text-muted-foreground font-normal">(optional)</span></Label>
+        <Label htmlFor="customOrderId">Auftrags-ID</Label>
         <Input
           id="customOrderId"
-          value={customOrderId}
-          onChange={(e) => setCustomOrderId(e.target.value)}
-          placeholder="z.B. AU-2026-001"
+          value={order?.customOrderId || "Wird automatisch vergeben"}
+          readOnly
+          disabled
+          className="font-mono text-muted-foreground"
         />
       </div>
 
@@ -133,24 +143,34 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
         />
       </div>
 
+      <div className="space-y-2">
+        <Label htmlFor="date">Datum</Label>
+        <Input
+          id="date"
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+        />
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="date">Datum</Label>
-          <Input
-            id="date"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="time">Uhrzeit</Label>
+          <Label htmlFor="time">Von</Label>
           <Input
             id="time"
             type="time"
             value={time}
             onChange={(e) => setTime(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="endTime">Bis <span className="text-muted-foreground font-normal">(optional)</span></Label>
+          <Input
+            id="endTime"
+            type="time"
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
           />
         </div>
       </div>
@@ -178,25 +198,19 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
       </div>
 
       <div className="space-y-2">
-        <Label>Kategorie</Label>
-        <RadioGroup
-          value={category}
-          onValueChange={(value) => setCategory(value as Category)}
-          className="flex flex-col gap-2"
-        >
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="OM Haustechnik" id="order-haustechnik" />
-            <Label htmlFor="order-haustechnik" className="font-normal cursor-pointer">
-              OM Haustechnik
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="OMO Gartenservice" id="order-gartenservice" />
-            <Label htmlFor="order-gartenservice" className="font-normal cursor-pointer">
-              OMO Gartenservice
-            </Label>
-          </div>
-        </RadioGroup>
+        <Label>Gewerk *</Label>
+        <Select value={gewerk} onValueChange={(value) => setGewerk(value as Gewerk)}>
+          <SelectTrigger>
+            <SelectValue placeholder="Gewerk auswählen" />
+          </SelectTrigger>
+          <SelectContent>
+            {GEWERKE.map((g) => (
+              <SelectItem key={g} value={g}>
+                {g}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {order && (
@@ -210,6 +224,7 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
               <SelectItem value="offen">Offen</SelectItem>
               <SelectItem value="in-bearbeitung">In Bearbeitung</SelectItem>
               <SelectItem value="erledigt">Erledigt</SelectItem>
+              <SelectItem value="storniert">Storniert</SelectItem>
             </SelectContent>
           </Select>
         </div>

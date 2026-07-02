@@ -28,7 +28,7 @@
   --chart-3: oklch(0.6 0.15 40);
   --chart-4: oklch(0.65 0.18 300);
   --chart-5: oklch(0.55 0.15 80);
-  --radius: 0.5rem;
+  --radius: 0.625rem;
   --sidebar: oklch(0.99 0 0);
   --sidebar-foreground: oklch(0.15 0.01 240);
   --sidebar-primary: oklch(0.45 0.18 250);
@@ -42,6 +42,7 @@
   --status-open: oklch(0.55 0.2 160);
   --status-progress: oklch(0.6 0.18 80);
   --status-done: oklch(0.5 0.15 240);
+  --status-cancelled: oklch(0.55 0.03 240);
   --om-haustechnik: oklch(0.45 0.18 250);
   --omo-gartenservice: oklch(0.55 0.2 160);
 }
@@ -83,13 +84,14 @@
   --status-open: oklch(0.6 0.2 160);
   --status-progress: oklch(0.65 0.18 80);
   --status-done: oklch(0.55 0.15 240);
+  --status-cancelled: oklch(0.65 0.03 240);
   --om-haustechnik: oklch(0.55 0.18 250);
   --omo-gartenservice: oklch(0.6 0.2 160);
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, 'SF Mono', 'Menlo', monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -129,6 +131,7 @@
   --color-status-open: var(--status-open);
   --color-status-progress: var(--status-progress);
   --color-status-done: var(--status-done);
+  --color-status-cancelled: var(--status-cancelled);
   --color-om-haustechnik: var(--om-haustechnik);
   --color-omo-gartenservice: var(--omo-gartenservice);
 }
@@ -137,7 +140,44 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+    font-variation-settings: normal;
+  }
+  /* Überschriften kompakter für einen modernen, ruhigen Look */
+  h1, h2, h3, h4 {
+    @apply tracking-tight;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 22%, transparent);
+  }
+  /* Dezente, schlanke Scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted-foreground);
+    background-clip: content-box;
   }
 }

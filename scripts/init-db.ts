@@ -24,6 +24,7 @@ const db = createClient({
       address TEXT NOT NULL DEFAULT '',
       notes TEXT NOT NULL DEFAULT '',
       category TEXT NOT NULL,
+      gewerk TEXT NOT NULL DEFAULT '',
       createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
     );
 
@@ -34,19 +35,29 @@ const db = createClient({
       description TEXT NOT NULL,
       date TEXT NOT NULL,
       time TEXT NOT NULL DEFAULT '',
+      endTime TEXT NOT NULL DEFAULT '',
       employeeId TEXT NOT NULL REFERENCES Employee(id) ON DELETE CASCADE,
       category TEXT NOT NULL,
+      gewerk TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'offen',
       createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
     );
   `)
 
-  // Migration: add customOrderId column to existing Order tables
-  try {
-    await db.execute(`ALTER TABLE "Order" ADD COLUMN customOrderId TEXT NOT NULL DEFAULT ''`)
-    console.log("Migration: customOrderId Spalte hinzugefügt")
-  } catch {
-    // Column already exists
+  // Migration: add columns to existing tables (idempotent)
+  const columnMigrations: Record<string, string> = {
+    "Order.customOrderId": `ALTER TABLE "Order" ADD COLUMN customOrderId TEXT NOT NULL DEFAULT ''`,
+    "Order.endTime": `ALTER TABLE "Order" ADD COLUMN endTime TEXT NOT NULL DEFAULT ''`,
+    "Order.gewerk": `ALTER TABLE "Order" ADD COLUMN gewerk TEXT NOT NULL DEFAULT ''`,
+    "Customer.gewerk": `ALTER TABLE Customer ADD COLUMN gewerk TEXT NOT NULL DEFAULT ''`,
+  }
+  for (const [column, sql] of Object.entries(columnMigrations)) {
+    try {
+      await db.execute(sql)
+      console.log(`Migration: ${column} Spalte hinzugefügt`)
+    } catch {
+      // Column already exists
+    }
   }
 
   console.log("Schema erfolgreich in Turso angelegt")

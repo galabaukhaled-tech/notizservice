@@ -21,3 +21,11 @@ dev.db-wal
 # leeres Prisma-Artefakt; echte DB liegt im Projektroot (dev.db)
 prisma/dev.db
 /lib/generated/prisma
+
+# Electron Build-Artefakte
+dist-electron/
+electron/env.json
+
+# Lokale Agent-Skills (Tooling, nicht Teil der App)
+.agents/
+skills-lock.json

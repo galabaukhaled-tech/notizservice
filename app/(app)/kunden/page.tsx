@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { Plus, Search, Phone, MapPin, StickyNote, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { useState, useMemo, useEffect, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
+import { Plus, Search, Phone, MapPin, StickyNote, MoreHorizontal, Pencil, Trash2, Clock, CheckCircle2, Circle, XCircle, Calendar } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -32,21 +33,61 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useStore } from "@/lib/store"
 import { CustomerForm } from "@/components/customer-form"
-import type { Customer } from "@/lib/types"
+import { OrderForm } from "@/components/order-form"
+import { ORDER_STATUS_SORT, type Customer, type Order, type OrderStatus } from "@/lib/types"
+import { formatTimeRange, mapsUrl, whatsappUrl } from "@/lib/utils"
 import { format } from "date-fns"
 import { de } from "date-fns/locale"
 import { toast } from "sonner"
 
-export default function KundenPage() {
+function StatusIcon({ status }: { status: OrderStatus }) {
+  switch (status) {
+    case "offen":
+      return <Circle className="size-4 text-status-open" />
+    case "in-bearbeitung":
+      return <Clock className="size-4 text-status-progress" />
+    case "erledigt":
+      return <CheckCircle2 className="size-4 text-status-done" />
+    case "storniert":
+      return <XCircle className="size-4 text-status-cancelled" />
+  }
+}
+
+function KundenInner() {
   const customers = useStore((state) => state.customers)
   const orders = useStore((state) => state.orders)
+  const employees = useStore((state) => state.employees)
   const deleteCustomer = useStore((state) => state.deleteCustomer)
-  
+
+  const searchParams = useSearchParams()
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
+
+  // Suchbegriff aus globaler Suche (?q=...) übernehmen
+  useEffect(() => {
+    const q = searchParams.get("q")
+    if (q) setSearch(q)
+  }, [searchParams])
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null)
+  const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null)
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+
+  const getEmployeeName = (employeeId: string) =>
+    employees.find((e) => e.id === employeeId)?.name || "Unbekannt"
+
+  // Auftragshistorie des ausgewählten Kunden, offen zuerst, dann nach Datum.
+  const viewingOrders = useMemo(() => {
+    if (!viewingCustomer) return []
+    return orders
+      .filter((o) => o.customerId === viewingCustomer.id)
+      .sort((a, b) => {
+        const statusDiff = ORDER_STATUS_SORT[a.status] - ORDER_STATUS_SORT[b.status]
+        if (statusDiff !== 0) return statusDiff
+        return a.date.getTime() - b.date.getTime()
+      })
+  }, [orders, viewingCustomer])
 
   const filteredCustomers = useMemo(() => {
     return customers.filter((customer) => {
@@ -152,19 +193,23 @@ export default function KundenPage() {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredCustomers.map((customer) => (
-            <Card key={customer.id} className="hover:shadow-md transition-shadow">
+            <Card
+              key={customer.id}
+              className="hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => setViewingCustomer(customer)}
+            >
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle className="text-base font-semibold truncate">
                     {customer.name}
                   </CardTitle>
                   <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="size-8 shrink-0">
                         <MoreHorizontal className="size-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenuItem onClick={() => setEditingCustomer(customer)}>
                         <Pencil className="size-4 mr-2" />
                         Bearbeiten
@@ -187,21 +232,33 @@ export default function KundenPage() {
                       : "text-accent border-accent/30 w-fit"
                   }
                 >
-                  {customer.category}
+                  {customer.gewerk || customer.category}
                 </Badge>
               </CardHeader>
               <CardContent className="space-y-2">
                 {customer.phone && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <a
+                    href={whatsappUrl(customer.phone)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary hover:underline"
+                  >
                     <Phone className="size-4 shrink-0" />
                     <span className="truncate">{customer.phone}</span>
-                  </div>
+                  </a>
                 )}
                 {customer.address && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <a
+                    href={mapsUrl(customer.address)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary hover:underline"
+                  >
                     <MapPin className="size-4 shrink-0" />
                     <span className="truncate">{customer.address}</span>
-                  </div>
+                  </a>
                 )}
                 {customer.notes && (
                   <div className="flex items-start gap-2 text-sm text-muted-foreground">
@@ -222,6 +279,83 @@ export default function KundenPage() {
           ))}
         </div>
       )}
+
+      {/* Customer History Dialog */}
+      <Dialog open={!!viewingCustomer} onOpenChange={(open) => !open && setViewingCustomer(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Auftragshistorie: {viewingCustomer?.name}</DialogTitle>
+            <DialogDescription>
+              {viewingOrders.length} {viewingOrders.length === 1 ? "Auftrag" : "Aufträge"} insgesamt
+            </DialogDescription>
+          </DialogHeader>
+          {viewingOrders.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              Für diesen Kunden gibt es noch keine Aufträge.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {viewingOrders.map((order) => {
+                const timeRange = formatTimeRange(order.time, order.endTime)
+                return (
+                  <button
+                    key={order.id}
+                    onClick={() => setEditingOrder(order)}
+                    className="w-full text-left flex items-start gap-3 p-3 rounded-lg border hover:border-primary/30 hover:shadow-sm transition-all"
+                  >
+                    <StatusIcon status={order.status} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className={`font-medium text-sm truncate ${order.status === "storniert" ? "line-through text-muted-foreground" : ""}`}>
+                          {order.description}
+                        </p>
+                        {order.customOrderId && (
+                          <span className="text-xs font-mono text-muted-foreground shrink-0">
+                            {order.customOrderId}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {getEmployeeName(order.employeeId)}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="size-3" />
+                          {format(order.date, "d. MMM yyyy", { locale: de })}
+                          {timeRange && <span className="tabular-nums">· {timeRange}</span>}
+                        </span>
+                        {order.gewerk && (
+                          <Badge variant="secondary" className="font-normal">
+                            {order.gewerk}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Order Edit Dialog */}
+      <Dialog open={!!editingOrder} onOpenChange={(open) => !open && setEditingOrder(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Auftrag bearbeiten</DialogTitle>
+            <DialogDescription>
+              Bearbeiten Sie die Auftragsdetails.
+            </DialogDescription>
+          </DialogHeader>
+          {editingOrder && (
+            <OrderForm
+              order={editingOrder}
+              onSuccess={() => setEditingOrder(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={!!editingCustomer} onOpenChange={(open) => !open && setEditingCustomer(null)}>
@@ -260,5 +394,13 @@ export default function KundenPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  )
+}
+
+export default function KundenPage() {
+  return (
+    <Suspense fallback={null}>
+      <KundenInner />
+    </Suspense>
   )
 }

@@ -9,10 +9,21 @@ import {
   ClipboardList,
   Calendar,
   UserCog,
+  BarChart3,
   Wrench,
   Flower2,
+  Building2,
+  Home,
+  Flame,
+  Zap,
+  Droplets,
+  Siren,
+  Bug,
+  Handshake,
+  type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { GEWERKE, type Gewerk } from "@/lib/types"
 import {
   Sidebar,
   SidebarContent,
@@ -51,23 +62,46 @@ const navigationItems = [
     href: "/mitarbeiter",
     icon: UserCog,
   },
+  {
+    title: "Statistik",
+    href: "/statistik",
+    icon: BarChart3,
+  },
 ]
+
+const gewerkIcons: Record<Gewerk, LucideIcon> = {
+  "OM Haustechnik": Wrench,
+  "OMO Gartenservice": Flower2,
+  "Gebäudedienstleistungen": Building2,
+  "Hausmeisterservice": Home,
+  "Heizungsservice": Flame,
+  "Elektrotechnik": Zap,
+  "Rohr-, Abfluss- & Kanalreinigung": Droplets,
+  "Notdienst & Soforthilfe": Siren,
+  "Kammerjäger": Bug,
+  "Handwerksvermittlung": Handshake,
+}
 
 export function AppSidebar() {
   const pathname = usePathname()
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b border-sidebar-border px-4 py-3">
-        <Link href="/" className="flex items-center gap-3">
-          <Image
-            src="/logo.png"
-            alt="OM Haustechnik UG Logo"
-            width={48}
-            height={48}
-            className="shrink-0"
-          />
-          <div className="flex flex-col">
+      <SidebarHeader className="border-b border-sidebar-border px-3 py-3">
+        <Link
+          href="/"
+          className="flex items-center gap-3 rounded-lg px-1.5 py-1 transition-colors hover:bg-sidebar-accent"
+        >
+          <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-sidebar-border bg-background shadow-sm">
+            <Image
+              src="/logo.png"
+              alt="OM Haustechnik UG Logo"
+              width={40}
+              height={40}
+              className="size-full object-contain p-1"
+            />
+          </div>
+          <div className="flex flex-col leading-tight">
             <span className="font-semibold text-sm tracking-tight">OM-Notiz</span>
             <span className="text-xs text-muted-foreground">Handwerksbetrieb</span>
           </div>
@@ -104,22 +138,19 @@ export function AppSidebar() {
           <SidebarGroupLabel>Bereiche</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <div className="flex items-center gap-2 text-muted-foreground cursor-default">
-                    <Wrench className="size-4 text-primary" />
-                    <span>OM Haustechnik</span>
-                  </div>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <div className="flex items-center gap-2 text-muted-foreground cursor-default">
-                    <Flower2 className="size-4 text-accent" />
-                    <span>OMO Gartenservice</span>
-                  </div>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {GEWERKE.map((gewerk) => {
+                const Icon = gewerkIcons[gewerk]
+                return (
+                  <SidebarMenuItem key={gewerk}>
+                    <SidebarMenuButton asChild>
+                      <div className="flex items-center gap-2 text-muted-foreground cursor-default">
+                        <Icon className="size-4" />
+                        <span>{gewerk}</span>
+                      </div>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

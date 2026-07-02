@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server"
 import { db, toRows, toRow } from "@/lib/db"
+import { GEWERKE } from "@/lib/types"
 import { randomUUID } from "crypto"
 
 const VALID_CATEGORIES = ["OM Haustechnik", "OMO Gartenservice"]
+const VALID_GEWERKE = GEWERKE as readonly string[]
 
 export async function GET() {
   try {
@@ -17,7 +19,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { name, phone, address, notes, category } = body
+    const { name, phone, address, notes, category, gewerk } = body
 
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json({ error: "Name ist erforderlich" }, { status: 400 })
@@ -25,12 +27,15 @@ export async function POST(request: Request) {
     if (!VALID_CATEGORIES.includes(category)) {
       return NextResponse.json({ error: "Ungültige Kategorie" }, { status: 400 })
     }
+    if (gewerk !== undefined && gewerk !== "" && !VALID_GEWERKE.includes(gewerk)) {
+      return NextResponse.json({ error: "Ungültiges Gewerk" }, { status: 400 })
+    }
 
     const id = randomUUID()
     const createdAt = new Date().toISOString()
 
     await db.execute({
-      sql: "INSERT INTO Customer (id, name, phone, address, notes, category, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      sql: "INSERT INTO Customer (id, name, phone, address, notes, category, gewerk, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       args: [
         id,
         name.trim(),
@@ -38,6 +43,7 @@ export async function POST(request: Request) {
         typeof address === "string" ? address.trim() : "",
         typeof notes === "string" ? notes.trim() : "",
         category,
+        typeof gewerk === "string" ? gewerk : "",
         createdAt,
       ],
     })

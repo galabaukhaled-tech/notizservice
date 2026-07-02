@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server"
 import { db, toRow } from "@/lib/db"
+import { GEWERKE } from "@/lib/types"
 import type { InValue } from "@libsql/client"
 
 const VALID_CATEGORIES = ["OM Haustechnik", "OMO Gartenservice"]
+const VALID_GEWERKE = GEWERKE as readonly string[]
 
 export async function PUT(
   request: Request,
@@ -11,13 +13,16 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, phone, address, notes, category } = body
+    const { name, phone, address, notes, category, gewerk } = body
 
     if (name !== undefined && (typeof name !== "string" || !name.trim())) {
       return NextResponse.json({ error: "Ungültiger Name" }, { status: 400 })
     }
     if (category !== undefined && !VALID_CATEGORIES.includes(category)) {
       return NextResponse.json({ error: "Ungültige Kategorie" }, { status: 400 })
+    }
+    if (gewerk !== undefined && gewerk !== "" && !VALID_GEWERKE.includes(gewerk)) {
+      return NextResponse.json({ error: "Ungültiges Gewerk" }, { status: 400 })
     }
 
     const existing = toRow(await db.execute({ sql: "SELECT * FROM Customer WHERE id = ?", args: [id] }))
@@ -32,6 +37,7 @@ export async function PUT(
     if (address !== undefined) { updates.push("address = ?"); values.push(String(address).trim()) }
     if (notes !== undefined) { updates.push("notes = ?"); values.push(String(notes).trim()) }
     if (category !== undefined) { updates.push("category = ?"); values.push(category) }
+    if (gewerk !== undefined) { updates.push("gewerk = ?"); values.push(typeof gewerk === "string" ? gewerk : "") }
     values.push(id)
 
     if (updates.length > 0) {

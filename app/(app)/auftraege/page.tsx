@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, Clock, CheckCircle2, Circle, Calendar, User, Copy } from "lucide-react"
+import { useState, useMemo, useEffect, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, Clock, CheckCircle2, Circle, XCircle, Calendar, User, Copy, FileDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -40,7 +41,10 @@ import {
 } from "@/components/ui/select"
 import { useStore } from "@/lib/store"
 import { OrderForm } from "@/components/order-form"
-import type { Order, OrderStatus } from "@/lib/types"
+import { GEWERKE, ORDER_STATUS_LABELS, ORDER_STATUS_SORT, type Order, type OrderStatus } from "@/lib/types"
+import { mapsUrl, whatsappUrl, formatTimeRange } from "@/lib/utils"
+import { MapPin, Phone } from "lucide-react"
+import { downloadOrderPdf } from "@/lib/order-pdf"
 import { format, isToday, isTomorrow, isPast, startOfDay } from "date-fns"
 import { de } from "date-fns/locale"
 import { toast } from "sonner"
@@ -53,22 +57,45 @@ function StatusIcon({ status }: { status: OrderStatus }) {
       return <Clock className="size-4 text-status-progress" />
     case "erledigt":
       return <CheckCircle2 className="size-4 text-status-done" />
+    case "storniert":
+      return <XCircle className="size-4 text-status-cancelled" />
   }
 }
 
-export default function AuftraegePage() {
+function AuftraegeInner() {
   const customers = useStore((state) => state.customers)
   const employees = useStore((state) => state.employees)
   const orders = useStore((state) => state.orders)
   const updateOrder = useStore((state) => state.updateOrder)
   const deleteOrder = useStore((state) => state.deleteOrder)
   
+  const searchParams = useSearchParams()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
+  const [gewerkFilter, setGewerkFilter] = useState<string>("all")
+
+  // Suchbegriff aus globaler Suche (?q=...) übernehmen
+  useEffect(() => {
+    const q = searchParams.get("q")
+    if (q) setSearch(q)
+  }, [searchParams])
   const [editingOrder, setEditingOrder] = useState<Order | null>(null)
   const [deletingOrder, setDeletingOrder] = useState<Order | null>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+
+  const handleDownloadPdf = async (order: Order) => {
+    try {
+      await downloadOrderPdf(
+        order,
+        customers.find((c) => c.id === order.customerId),
+        employees.find((e) => e.id === order.employeeId)
+      )
+      toast.success("PDF heruntergeladen")
+    } catch {
+      toast.error("PDF konnte nicht erstellt werden")
+    }
+  }
 
   const filteredOrders = useMemo(() => {
     return orders
@@ -76,6 +103,7 @@ export default function AuftraegePage() {
         const customer = customers.find((c) => c.id === order.customerId)
         const matchesSearch =
           order.description.toLowerCase().includes(search.toLowerCase()) ||
+          order.customOrderId.toLowerCase().includes(search.toLowerCase()) ||
           customer?.name.toLowerCase().includes(search.toLowerCase())
         
         const matchesStatus =
@@ -83,11 +111,19 @@ export default function AuftraegePage() {
         
         const matchesCategory =
           categoryFilter === "all" || order.category === categoryFilter
-        
-        return matchesSearch && matchesStatus && matchesCategory
+
+        const matchesGewerk =
+          gewerkFilter === "all" || order.gewerk === gewerkFilter
+
+        return matchesSearch && matchesStatus && matchesCategory && matchesGewerk
       })
-      .sort((a, b) => a.date.getTime() - b.date.getTime())
-  }, [orders, customers, search, statusFilter, categoryFilter])
+      .sort((a, b) => {
+        // Zuerst nach Status (offen -> in Bearbeitung -> erledigt -> storniert), dann nach Datum.
+        const statusDiff = ORDER_STATUS_SORT[a.status] - ORDER_STATUS_SORT[b.status]
+        if (statusDiff !== 0) return statusDiff
+        return a.date.getTime() - b.date.getTime()
+      })
+  }, [orders, customers, search, statusFilter, categoryFilter, gewerkFilter])
 
   const getCustomerName = (customerId: string) => {
     return customers.find((c) => c.id === customerId)?.name || "Unbekannt"
@@ -111,9 +147,10 @@ export default function AuftraegePage() {
   const handleCopy = (order: Order) => {
     const customer = customers.find((c) => c.id === order.customerId)
     const employee = employees.find((e) => e.id === order.employeeId)
-    const statusLabel = order.status === "offen" ? "Offen" : order.status === "in-bearbeitung" ? "In Bearbeitung" : "Erledigt"
+    const statusLabel = ORDER_STATUS_LABELS[order.status]
     const dateLabel = format(order.date, "d. MMM yyyy", { locale: de })
-    const timeLabel = order.time ? ` um ${order.time} Uhr` : ""
+    const range = formatTimeRange(order.time, order.endTime)
+    const timeLabel = range ? ` um ${range} Uhr` : ""
 
     const lines: string[] = []
     if (order.customOrderId) lines.push(`Auftrags-ID: ${order.customOrderId}`)
@@ -128,6 +165,7 @@ export default function AuftraegePage() {
     lines.push(`Datum: ${dateLabel}${timeLabel}`)
     if (employee) lines.push(`Mitarbeiter: ${employee.name}`)
     lines.push(`Kategorie: ${order.category}`)
+    if (order.gewerk) lines.push(`Gewerk: ${order.gewerk}`)
     lines.push(`Status: ${statusLabel}`)
 
     navigator.clipboard.writeText(lines.join("\n"))
@@ -136,7 +174,7 @@ export default function AuftraegePage() {
 
   const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
     updateOrder(orderId, { status: newStatus })
-    toast.success(`Status geändert zu "${newStatus === "offen" ? "Offen" : newStatus === "in-bearbeitung" ? "In Bearbeitung" : "Erledigt"}"`)
+    toast.success(`Status geändert zu "${ORDER_STATUS_LABELS[newStatus]}"`)
   }
 
   const handleDelete = () => {
@@ -151,6 +189,7 @@ export default function AuftraegePage() {
     offen: orders.filter((o) => o.status === "offen").length,
     "in-bearbeitung": orders.filter((o) => o.status === "in-bearbeitung").length,
     erledigt: orders.filter((o) => o.status === "erledigt").length,
+    storniert: orders.filter((o) => o.status === "storniert").length,
   }), [orders])
 
   return (
@@ -230,6 +269,18 @@ export default function AuftraegePage() {
           <span className="font-medium text-sm">Erledigt</span>
           <Badge variant="secondary" className="ml-1">{statusCounts.erledigt}</Badge>
         </button>
+        <button
+          onClick={() => setStatusFilter("storniert")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+            statusFilter === "storniert"
+              ? "bg-status-cancelled text-white border-status-cancelled"
+              : "bg-card border-border hover:border-status-cancelled/50"
+          }`}
+        >
+          <XCircle className="size-4" />
+          <span className="font-medium text-sm">Storniert</span>
+          <Badge variant="secondary" className="ml-1">{statusCounts.storniert}</Badge>
+        </button>
       </div>
 
       {/* Filters */}
@@ -266,6 +317,19 @@ export default function AuftraegePage() {
             Garten
           </Button>
         </div>
+        <Select value={gewerkFilter} onValueChange={setGewerkFilter}>
+          <SelectTrigger className="w-full sm:w-[220px]">
+            <SelectValue placeholder="Alle Gewerke" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alle Gewerke</SelectItem>
+            {GEWERKE.map((g) => (
+              <SelectItem key={g} value={g}>
+                {g}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Order List */}
@@ -273,7 +337,7 @@ export default function AuftraegePage() {
         <Card>
           <CardContent className="py-12">
             <p className="text-center text-muted-foreground">
-              {search || statusFilter !== "all" || categoryFilter !== "all"
+              {search || statusFilter !== "all" || categoryFilter !== "all" || gewerkFilter !== "all"
                 ? "Keine Aufträge gefunden"
                 : "Noch keine Aufträge vorhanden"}
             </p>
@@ -282,8 +346,10 @@ export default function AuftraegePage() {
       ) : (
         <div className="space-y-3">
           {filteredOrders.map((order) => {
-            const isOverdue = isPast(startOfDay(order.date)) && order.status !== "erledigt"
-            
+            const isOverdue = isPast(startOfDay(order.date)) && order.status !== "erledigt" && order.status !== "storniert"
+            const customer = customers.find((c) => c.id === order.customerId)
+            const timeRange = formatTimeRange(order.time, order.endTime)
+
             return (
               <Card
                 key={order.id}
@@ -298,9 +364,9 @@ export default function AuftraegePage() {
                       style={{ backgroundColor: getEmployeeColor(order.employeeId) }}
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
                             <p className="font-medium">{order.description}</p>
                             {order.customOrderId && (
                               <span className="text-xs font-mono text-muted-foreground border border-border rounded px-1.5 py-0.5 shrink-0">
@@ -342,6 +408,12 @@ export default function AuftraegePage() {
                                   Erledigt
                                 </div>
                               </SelectItem>
+                              <SelectItem value="storniert">
+                                <div className="flex items-center gap-2">
+                                  <XCircle className="size-4 text-status-cancelled" />
+                                  Storniert
+                                </div>
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                           <DropdownMenu>
@@ -359,6 +431,10 @@ export default function AuftraegePage() {
                                 <Copy className="size-4 mr-2" />
                                 Kopieren
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDownloadPdf(order)}>
+                                <FileDown className="size-4 mr-2" />
+                                Als PDF herunterladen
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 onClick={() => setDeletingOrder(order)}
@@ -375,6 +451,7 @@ export default function AuftraegePage() {
                         <div className={`flex items-center gap-1 text-xs ${isOverdue ? "text-destructive font-medium" : "text-muted-foreground"}`}>
                           <Calendar className="size-3" />
                           {getDateLabel(order.date)}
+                          {timeRange && <span className="tabular-nums">· {timeRange}</span>}
                         </div>
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           <User className="size-3" />
@@ -390,7 +467,40 @@ export default function AuftraegePage() {
                         >
                           {order.category === "OM Haustechnik" ? "Haustechnik" : "Garten"}
                         </Badge>
+                        {order.gewerk && (
+                          <Badge variant="secondary" className="font-normal">
+                            {order.gewerk}
+                          </Badge>
+                        )}
                       </div>
+                      {(customer?.address || customer?.phone) && (
+                        <div className="flex flex-wrap items-center gap-3 mt-2">
+                          {customer.address && (
+                            <a
+                              href={mapsUrl(customer.address)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary hover:underline"
+                            >
+                              <MapPin className="size-3 shrink-0" />
+                              {customer.address}
+                            </a>
+                          )}
+                          {customer.phone && (
+                            <a
+                              href={whatsappUrl(customer.phone)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary hover:underline"
+                            >
+                              <Phone className="size-3 shrink-0" />
+                              {customer.phone}
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -437,5 +547,13 @@ export default function AuftraegePage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  )
+}
+
+export default function AuftraegePage() {
+  return (
+    <Suspense fallback={null}>
+      <AuftraegeInner />
+    </Suspense>
   )
 }
