@@ -136,6 +136,18 @@
   --color-omo-gartenservice: var(--omo-gartenservice);
 }
 
+/* Dezenter Puls für die Überfällig-Warnung */
+@keyframes alert-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--destructive) 40%, transparent); }
+  50% { box-shadow: 0 0 0 6px color-mix(in oklch, var(--destructive) 0%, transparent); }
+}
+.animate-alert-pulse {
+  animation: alert-pulse 2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-alert-pulse { animation: none; }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

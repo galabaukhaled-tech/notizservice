@@ -37,6 +37,41 @@ export const ORDER_STATUS_SORT: Record<OrderStatus, number> = {
   storniert: 3,
 }
 
+// ── Priorität / Dringlichkeit ────────────────────────────────────────
+export const ORDER_PRIORITIES = ["normal", "wichtig", "sofort"] as const
+export type OrderPriority = (typeof ORDER_PRIORITIES)[number]
+
+export const PRIORITY_META: Record<
+  OrderPriority,
+  { label: string; color: string; dot: string }
+> = {
+  normal: { label: "Normal", color: "#22c55e", dot: "🟢" },
+  wichtig: { label: "Wichtig", color: "#f59e0b", dot: "🟡" },
+  sofort: { label: "Sofort", color: "#ef4444", dot: "🔴" },
+}
+
+/** Sortier-Reihenfolge: Sofort zuerst. */
+export const PRIORITY_SORT: Record<OrderPriority, number> = {
+  sofort: 0,
+  wichtig: 1,
+  normal: 2,
+}
+
+// ── Vertriebs-Pipeline (Angebotsstatus) ──────────────────────────────
+export const ORDER_PHASES = [
+  "Anfrage",
+  "Besichtigung geplant",
+  "Angebot erstellt",
+  "Kunde überlegt",
+  "Auftrag erhalten",
+  "Rechnung offen",
+  "Erledigt",
+] as const
+export type OrderPhase = (typeof ORDER_PHASES)[number]
+
+/** Phasen, die als "gewonnener Auftrag" zählen (Anfrage → Auftrag). */
+export const WON_PHASES: OrderPhase[] = ["Auftrag erhalten", "Rechnung offen", "Erledigt"]
+
 export interface Customer {
   id: string
   name: string
@@ -66,6 +101,10 @@ export interface Order {
   category: Category
   gewerk: Gewerk | ""
   status: OrderStatus
+  priority: OrderPriority
+  phase: OrderPhase | ""
+  value: number
+  followUpDate: string
   createdAt: Date
 }
 

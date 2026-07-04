@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/select"
 import { useStore } from "@/lib/store"
 import { OrderForm } from "@/components/order-form"
-import { GEWERKE, ORDER_STATUS_LABELS, ORDER_STATUS_SORT, type Order, type OrderStatus } from "@/lib/types"
+import { GEWERKE, ORDER_STATUS_LABELS, ORDER_STATUS_SORT, PRIORITY_META, PRIORITY_SORT, type Order, type OrderStatus } from "@/lib/types"
 import { mapsUrl, whatsappUrl, formatTimeRange } from "@/lib/utils"
 import { MapPin, Phone } from "lucide-react"
 import { downloadOrderPdf } from "@/lib/order-pdf"
@@ -118,9 +118,11 @@ function AuftraegeInner() {
         return matchesSearch && matchesStatus && matchesCategory && matchesGewerk
       })
       .sort((a, b) => {
-        // Zuerst nach Status (offen -> in Bearbeitung -> erledigt -> storniert), dann nach Datum.
+        // Status (offen zuerst), dann Priorität (sofort zuerst), dann Datum.
         const statusDiff = ORDER_STATUS_SORT[a.status] - ORDER_STATUS_SORT[b.status]
         if (statusDiff !== 0) return statusDiff
+        const prioDiff = PRIORITY_SORT[a.priority] - PRIORITY_SORT[b.priority]
+        if (prioDiff !== 0) return prioDiff
         return a.date.getTime() - b.date.getTime()
       })
   }, [orders, customers, search, statusFilter, categoryFilter, gewerkFilter])
@@ -353,9 +355,14 @@ function AuftraegeInner() {
             return (
               <Card
                 key={order.id}
-                className={`hover:shadow-md transition-shadow ${
+                className={`hover:shadow-md transition-shadow overflow-hidden ${
                   isOverdue ? "border-destructive/50" : ""
                 }`}
+                style={
+                  order.priority !== "normal"
+                    ? { borderLeft: `3px solid ${PRIORITY_META[order.priority].color}` }
+                    : undefined
+                }
               >
                 <CardContent className="p-4">
                   <div className="flex items-start gap-4">
@@ -371,6 +378,17 @@ function AuftraegeInner() {
                             {order.customOrderId && (
                               <span className="text-xs font-mono text-muted-foreground border border-border rounded px-1.5 py-0.5 shrink-0">
                                 {order.customOrderId}
+                              </span>
+                            )}
+                            {order.priority !== "normal" && (
+                              <span
+                                className="inline-flex items-center gap-1 text-xs font-medium rounded px-1.5 py-0.5 shrink-0"
+                                style={{
+                                  color: PRIORITY_META[order.priority].color,
+                                  backgroundColor: `${PRIORITY_META[order.priority].color}1a`,
+                                }}
+                              >
+                                {PRIORITY_META[order.priority].label}
                               </span>
                             )}
                           </div>
@@ -471,6 +489,16 @@ function AuftraegeInner() {
                           <Badge variant="secondary" className="font-normal">
                             {order.gewerk}
                           </Badge>
+                        )}
+                        {order.phase && (
+                          <Badge variant="outline" className="font-normal text-muted-foreground">
+                            {order.phase}
+                          </Badge>
+                        )}
+                        {order.value > 0 && (
+                          <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                            {new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(order.value)}
+                          </span>
                         )}
                       </div>
                       {(customer?.address || customer?.phone) && (

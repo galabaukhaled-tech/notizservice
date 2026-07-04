@@ -76,6 +76,10 @@ function parseOrder(raw: Record<string, unknown>): Order {
     category: raw.category as Order["category"],
     gewerk: (raw.gewerk as Order["gewerk"]) ?? "",
     status: raw.status as Order["status"],
+    priority: (raw.priority as Order["priority"]) ?? "normal",
+    phase: (raw.phase as Order["phase"]) ?? "",
+    value: typeof raw.value === "number" ? raw.value : Number(raw.value ?? 0) || 0,
+    followUpDate: (raw.followUpDate as string) ?? "",
     createdAt: parseDate(raw.createdAt),
   }
 }

@@ -40,6 +40,10 @@ const db = createClient({
       category TEXT NOT NULL,
       gewerk TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'offen',
+      priority TEXT NOT NULL DEFAULT 'normal',
+      phase TEXT NOT NULL DEFAULT '',
+      value REAL NOT NULL DEFAULT 0,
+      followUpDate TEXT NOT NULL DEFAULT '',
       createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
     );
   `)
@@ -49,6 +53,10 @@ const db = createClient({
     "Order.customOrderId": `ALTER TABLE "Order" ADD COLUMN customOrderId TEXT NOT NULL DEFAULT ''`,
     "Order.endTime": `ALTER TABLE "Order" ADD COLUMN endTime TEXT NOT NULL DEFAULT ''`,
     "Order.gewerk": `ALTER TABLE "Order" ADD COLUMN gewerk TEXT NOT NULL DEFAULT ''`,
+    "Order.priority": `ALTER TABLE "Order" ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'`,
+    "Order.phase": `ALTER TABLE "Order" ADD COLUMN phase TEXT NOT NULL DEFAULT ''`,
+    "Order.value": `ALTER TABLE "Order" ADD COLUMN value REAL NOT NULL DEFAULT 0`,
+    "Order.followUpDate": `ALTER TABLE "Order" ADD COLUMN followUpDate TEXT NOT NULL DEFAULT ''`,
     "Customer.gewerk": `ALTER TABLE Customer ADD COLUMN gewerk TEXT NOT NULL DEFAULT ''`,
   }
   for (const [column, sql] of Object.entries(columnMigrations)) {

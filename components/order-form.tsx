@@ -13,7 +13,18 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useStore } from "@/lib/store"
-import { GEWERKE, categoryFromGewerk, type Gewerk, type OrderStatus, type Order } from "@/lib/types"
+import {
+  GEWERKE,
+  ORDER_PHASES,
+  ORDER_PRIORITIES,
+  PRIORITY_META,
+  categoryFromGewerk,
+  type Gewerk,
+  type OrderStatus,
+  type OrderPriority,
+  type OrderPhase,
+  type Order,
+} from "@/lib/types"
 import { toast } from "sonner"
 import { Spinner } from "@/components/ui/spinner"
 import { format } from "date-fns"
@@ -38,6 +49,10 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
   const [employeeId, setEmployeeId] = useState(order?.employeeId || "")
   const [gewerk, setGewerk] = useState<Gewerk | "">(order?.gewerk || "")
   const [status, setStatus] = useState<OrderStatus>(order?.status || "offen")
+  const [priority, setPriority] = useState<OrderPriority>(order?.priority || "normal")
+  const [phase, setPhase] = useState<OrderPhase | "">(order?.phase || "")
+  const [value, setValue] = useState(order?.value ? String(order.value) : "")
+  const [followUpDate, setFollowUpDate] = useState(order?.followUpDate || "")
   const [isLoading, setIsLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -78,6 +93,10 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
           category: categoryFromGewerk(gewerk),
           gewerk,
           status,
+          priority,
+          phase,
+          value: value ? parseFloat(value.replace(",", ".")) || 0 : 0,
+          followUpDate,
         })
         toast.success("Auftrag aktualisiert")
       } else {
@@ -91,6 +110,10 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
           category: categoryFromGewerk(gewerk),
           gewerk,
           status,
+          priority,
+          phase,
+          value: value ? parseFloat(value.replace(",", ".")) || 0 : 0,
+          followUpDate,
         })
         toast.success("Auftrag erstellt")
       }
@@ -211,6 +234,68 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Priorität</Label>
+          <Select value={priority} onValueChange={(v) => setPriority(v as OrderPriority)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ORDER_PRIORITIES.map((p) => (
+                <SelectItem key={p} value={p}>
+                  <div className="flex items-center gap-2">
+                    <span className="size-2.5 rounded-full" style={{ backgroundColor: PRIORITY_META[p].color }} />
+                    {PRIORITY_META[p].label}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="value">Auftragswert € <span className="text-muted-foreground font-normal">(optional)</span></Label>
+          <Input
+            id="value"
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="z.B. 1200"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Pipeline-Phase <span className="text-muted-foreground font-normal">(Angebotsstatus)</span></Label>
+        <Select value={phase || "none"} onValueChange={(v) => setPhase(v === "none" ? "" : (v as OrderPhase))}>
+          <SelectTrigger>
+            <SelectValue placeholder="Keine" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Keine</SelectItem>
+            {ORDER_PHASES.map((p) => (
+              <SelectItem key={p} value={p}>
+                {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="followUpDate">Wiedervorlage / Rückruf am <span className="text-muted-foreground font-normal">(optional)</span></Label>
+        <Input
+          id="followUpDate"
+          type="date"
+          value={followUpDate}
+          onChange={(e) => setFollowUpDate(e.target.value)}
+        />
       </div>
 
       {order && (

@@ -38,6 +38,10 @@ model Order {
   category    String
   gewerk      String   @default("")
   status      String   @default("offen")
+  priority    String   @default("normal")
+  phase       String   @default("")
+  value       Float    @default(0)
+  followUpDate String  @default("")
   createdAt   DateTime @default(now())
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
