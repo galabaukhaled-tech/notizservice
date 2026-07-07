@@ -24,6 +24,7 @@ prisma/dev.db
 
 # Electron Build-Artefakte
 dist-electron/
+dist-electron-fixed/
 electron/env.json
 
 # Lokale Agent-Skills (Tooling, nicht Teil der App)

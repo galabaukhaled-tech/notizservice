@@ -3,12 +3,16 @@ productName: Notizservice
 directories:
   output: dist-electron
   buildResources: build
+# Kopiert .next/standalone/node_modules nach dem Packen manuell in die Resources.
+# electron-builder filtert node_modules bei extraResources sonst weg -> Server crasht.
+afterPack: scripts/after-pack.cjs
 # Nur die Electron-Dateien gehen in den App-ASAR; der Next-Server kommt als Resource dazu.
 files:
   - electron/**/*
   - "!electron/env.json"
 extraResources:
-  # Self-contained Next.js-Server inkl. node_modules
+  # Self-contained Next.js-Server. node_modules wird per afterPack-Hook nachkopiert
+  # (electron-builder filtert node_modules bei extraResources weg).
   - from: .next/standalone
     to: standalone
   # Turso-Zugangsdaten neben den Server legen
