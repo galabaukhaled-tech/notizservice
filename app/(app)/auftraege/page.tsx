@@ -42,7 +42,7 @@ import {
 import { useStore } from "@/lib/store"
 import { OrderForm } from "@/components/order-form"
 import { GEWERKE, ORDER_STATUS_LABELS, ORDER_STATUS_SORT, PRIORITY_META, PRIORITY_SORT, type Order, type OrderStatus } from "@/lib/types"
-import { mapsUrl, whatsappUrl, formatTimeRange } from "@/lib/utils"
+import { formatTimeRange, mapsUrl, whatsappUrl, copyOrderToClipboard } from "@/lib/utils"
 import { MapPin, Phone } from "lucide-react"
 import { downloadOrderPdf } from "@/lib/order-pdf"
 import { format, isToday, isTomorrow, isPast, startOfDay } from "date-fns"
@@ -146,32 +146,17 @@ function AuftraegeInner() {
     return format(date, "d. MMM yyyy", { locale: de })
   }
 
-  const handleCopy = (order: Order) => {
-    const customer = customers.find((c) => c.id === order.customerId)
-    const employee = employees.find((e) => e.id === order.employeeId)
-    const statusLabel = ORDER_STATUS_LABELS[order.status]
-    const dateLabel = format(order.date, "d. MMM yyyy", { locale: de })
-    const range = formatTimeRange(order.time, order.endTime)
-    const timeLabel = range ? ` um ${range} Uhr` : ""
-
-    const lines: string[] = []
-    if (order.customOrderId) lines.push(`Auftrags-ID: ${order.customOrderId}`)
-    lines.push("──────────────────────")
-    if (customer) {
-      lines.push(`Kunde: ${customer.name}`)
-      if (customer.phone) lines.push(`Telefon: ${customer.phone}`)
-      if (customer.address) lines.push(`Adresse: ${customer.address}`)
+  const handleCopy = async (order: Order) => {
+    try {
+      await copyOrderToClipboard({
+        order,
+        customer: customers.find((c) => c.id === order.customerId),
+        employee: employees.find((e) => e.id === order.employeeId),
+      })
+      toast.success("Auftrag kopiert")
+    } catch {
+      toast.error("Konnte nicht in die Zwischenablage kopiert werden")
     }
-    lines.push("──────────────────────")
-    lines.push(`Beschreibung: ${order.description}`)
-    lines.push(`Datum: ${dateLabel}${timeLabel}`)
-    if (employee) lines.push(`Mitarbeiter: ${employee.name}`)
-    lines.push(`Kategorie: ${order.category}`)
-    if (order.gewerk) lines.push(`Gewerk: ${order.gewerk}`)
-    lines.push(`Status: ${statusLabel}`)
-
-    navigator.clipboard.writeText(lines.join("\n"))
-    toast.success("Auftrag kopiert")
   }
 
   const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {

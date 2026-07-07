@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { OrderForm } from "@/components/order-form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -30,20 +31,20 @@ export function CustomerForm({ initialPhone = "", customer, onSuccess }: Custome
   const [notes, setNotes] = useState(customer?.notes || "")
   const [gewerk, setGewerk] = useState<Gewerk | "">(customer?.gewerk || "")
   const [isLoading, setIsLoading] = useState(false)
+  const [showOrderForm, setShowOrderForm] = useState(false)
+  const [createdCustomerId, setCreatedCustomerId] = useState<string | null>(null)
 
   const addCustomer = useStore((state) => state.addCustomer)
   const updateCustomer = useStore((state) => state.updateCustomer)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+  const handleCustomerSave = async () => {
     if (!name.trim()) {
       toast.error("Bitte Namen eingeben")
-      return
+      return null
     }
     if (!gewerk) {
       toast.error("Bitte Gewerk auswählen")
-      return
+      return null
     }
 
     setIsLoading(true)
@@ -53,20 +54,39 @@ export function CustomerForm({ initialPhone = "", customer, onSuccess }: Custome
       if (customer) {
         await updateCustomer(customer.id, { name, phone, address, notes, category, gewerk })
         toast.success("Kunde aktualisiert")
-      } else {
-        await addCustomer({ name, phone, address, notes, category, gewerk })
-        toast.success("Kunde erstellt")
+        return customer
       }
-      onSuccess?.()
+
+      const createdCustomer = await addCustomer({ name, phone, address, notes, category, gewerk })
+      toast.success("Kunde erstellt")
+      return createdCustomer
     } catch {
       toast.error("Fehler beim Speichern")
+      return null
     } finally {
       setIsLoading(false)
     }
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const savedCustomer = await handleCustomerSave()
+    if (savedCustomer) {
+      onSuccess?.()
+    }
+  }
+
+  const handleAddOrder = async () => {
+    const savedCustomer = await handleCustomerSave()
+    if (savedCustomer && !customer) {
+      setCreatedCustomerId(savedCustomer.id)
+      setShowOrderForm(true)
+    }
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="name">Name *</Label>
         <Input
@@ -125,10 +145,30 @@ export function CustomerForm({ initialPhone = "", customer, onSuccess }: Custome
         </Select>
       </div>
 
-      <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading && <Spinner className="mr-2" />}
-        {customer ? "Speichern" : "Kunde erstellen"}
-      </Button>
-    </form>
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading && <Spinner className="mr-2" />}
+          {customer ? "Speichern" : "Kunde erstellen"}
+        </Button>
+
+        {!customer && (
+          <Button type="button" variant="outline" className="w-full" onClick={handleAddOrder} disabled={isLoading}>
+            {isLoading && <Spinner className="mr-2" />}
+            Auftrag hinzufügen
+          </Button>
+        )}
+      </form>
+
+      {!customer && showOrderForm && createdCustomerId && (
+        <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+          <div>
+            <p className="font-medium">Neuer Auftrag</p>
+            <p className="text-sm text-muted-foreground">
+              Der Kunde ist bereits voreingestellt. Ergänzen Sie die restlichen Daten und erstellen Sie den Auftrag.
+            </p>
+          </div>
+          <OrderForm preselectedCustomerId={createdCustomerId} />
+        </div>
+      )}
+    </div>
   )
 }

@@ -25,7 +25,7 @@ interface StoreState {
   deleteEmployee: (id: string) => Promise<void>
 
   // Order actions
-  addOrder: (order: Omit<Order, "id" | "createdAt" | "customOrderId">) => Promise<void>
+  addOrder: (order: Omit<Order, "id" | "createdAt" | "customOrderId">) => Promise<Order>
   updateOrder: (id: string, order: Partial<Order>) => Promise<void>
   deleteOrder: (id: string) => Promise<void>
 
@@ -186,6 +186,7 @@ export const useStore = create<StoreState>((set, get) => ({
       type: "order-created",
       message: `Neuer Auftrag erstellt`,
     })
+    return newOrder
   },
 
   updateOrder: async (id, order) => {

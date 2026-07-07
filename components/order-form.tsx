@@ -1,10 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import {
   Select,
   SelectContent,
@@ -28,6 +36,7 @@ import {
 import { toast } from "sonner"
 import { Spinner } from "@/components/ui/spinner"
 import { format } from "date-fns"
+import { copyOrderToClipboard } from "@/lib/utils"
 
 interface OrderFormProps {
   preselectedCustomerId?: string
@@ -54,6 +63,27 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
   const [value, setValue] = useState(order?.value ? String(order.value) : "")
   const [followUpDate, setFollowUpDate] = useState(order?.followUpDate || "")
   const [isLoading, setIsLoading] = useState(false)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("")
+
+  const selectedCustomer = useMemo(
+    () => customers.find((customer) => customer.id === customerId) ?? null,
+    [customers, customerId]
+  )
+
+  const filteredCustomers = useMemo(
+    () =>
+      customers.filter((customer) =>
+        customer.name.toLowerCase().includes(customerSearchQuery.toLowerCase())
+      ),
+    [customers, customerSearchQuery]
+  )
+
+  useEffect(() => {
+    if (!order && !gewerk && selectedCustomer?.gewerk) {
+      setGewerk(selectedCustomer.gewerk)
+    }
+  }, [order, selectedCustomer, gewerk])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -79,43 +109,34 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
       return
     }
 
+    const payload = {
+      customerId,
+      description: description.trim(),
+      date: new Date(date),
+      time,
+      endTime,
+      employeeId,
+      category: categoryFromGewerk(gewerk),
+      gewerk,
+      status,
+      priority,
+      phase,
+      value: value ? parseFloat(value.replace(",", ".")) || 0 : 0,
+      followUpDate,
+    }
+
     setIsLoading(true)
 
     try {
       if (order) {
-        await updateOrder(order.id, {
-          customerId,
-          description,
-          date: new Date(date),
-          time,
-          endTime,
-          employeeId,
-          category: categoryFromGewerk(gewerk),
-          gewerk,
-          status,
-          priority,
-          phase,
-          value: value ? parseFloat(value.replace(",", ".")) || 0 : 0,
-          followUpDate,
-        })
+        await updateOrder(order.id, payload)
         toast.success("Auftrag aktualisiert")
       } else {
-        await addOrder({
-          customerId,
-          description,
-          date: new Date(date),
-          time,
-          endTime,
-          employeeId,
-          category: categoryFromGewerk(gewerk),
-          gewerk,
-          status,
-          priority,
-          phase,
-          value: value ? parseFloat(value.replace(",", ".")) || 0 : 0,
-          followUpDate,
-        })
-        toast.success("Auftrag erstellt")
+        const createdOrder = await addOrder(payload)
+        const customer = customers.find((item) => item.id === customerId)
+        const employee = employees.find((item) => item.id === employeeId)
+        const copied = await copyOrderToClipboard({ order: createdOrder, customer, employee })
+        toast.success(copied ? "Auftrag erstellt und Daten in die Zwischenablage kopiert" : "Auftrag erstellt")
       }
       onSuccess?.()
     } catch {
@@ -152,6 +173,51 @@ export function OrderForm({ preselectedCustomerId, order, onSuccess }: OrderForm
             ))}
           </SelectContent>
         </Select>
+        <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
+          <DialogTrigger asChild>
+            <Button type="button" variant="outline" className="w-full">
+              Kunde suchen
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Kunde suchen</DialogTitle>
+              <DialogDescription>
+                Suche einen vorhandenen Kunden und wähle ihn für den Auftrag aus.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <Input
+                placeholder="Kundenname eingeben..."
+                value={customerSearchQuery}
+                onChange={(e) => setCustomerSearchQuery(e.target.value)}
+              />
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {filteredCustomers.length > 0 ? (
+                  filteredCustomers.map((customer) => (
+                    <Button
+                      key={customer.id}
+                      type="button"
+                      variant="secondary"
+                      className="w-full justify-start"
+                      onClick={() => {
+                        setCustomerId(customer.id)
+                        setIsSearchOpen(false)
+                        setCustomerSearchQuery("")
+                      }}
+                    >
+                      {customer.name}
+                    </Button>
+                  ))
+                ) : (
+                  <div className="rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
+                    Kein Kunde gefunden.
+                  </div>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="space-y-2">
